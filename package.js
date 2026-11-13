@@ -1,0 +1,14 @@
+{
+  "name": "discord-oauth-site",
+  "version": "1.0.0",
+  "description": "موقع مخصص لتفويض بوت ديسكورد",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1"
+  }
+}
