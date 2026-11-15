@@ -31,6 +31,9 @@ const usersData = mongoose.model("datadbs", userSchema);
 const app = express();
 app.use(cookieParser(COOKIE_SECRET));
 
+// تقديم الملفات الثابتة إذا أردت وضع صور داخل مجلد public
+app.use(express.static("public"));
+
 const page = (body) => `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -41,9 +44,10 @@ const page = (body) => `<!doctype html>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: linear-gradient(135deg, #120d1a 0%, #1f0c24 50%, #08060a 100%);
-      background-size: 400% 400%;
-      animation: spookyBg 15s ease infinite;
+      /* خلفية الهالووين المأخوذة من صورتك المطابقة للقمر العملاق والقلعة المرعبة */
+      background: linear-gradient(rgba(15, 8, 25, 0.65), rgba(15, 8, 25, 0.75)), 
+                  url('https://images.unsplash.com/photo-1508385082359-f38ae991e8f2?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
+      background-size: cover;
       color: #e0def4;
       font-family: 'Tajawal', sans-serif;
       min-height: 100vh;
@@ -53,49 +57,19 @@ const page = (body) => `<!doctype html>
       overflow: hidden;
       position: relative;
     }
-    @keyframes spookyBg {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-    /* تأثيرات خلفية الهالووين المتحركة */
-    .halloween-bg {
-      position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
-      overflow: hidden;
-      pointer-events: none;
-      z-index: 1;
-    }
-    .glow-orb {
-      position: absolute;
-      width: 300px;
-      height: 300px;
-      background: radial-gradient(circle, rgba(255, 107, 0, 0.12) 0%, transparent 70%);
-      border-radius: 50%;
-      animation: floatOrb 10s ease-in-out infinite alternate;
-    }
-    .glow-orb:nth-child(2) {
-      top: 60%; left: 70%;
-      background: radial-gradient(circle, rgba(138, 43, 226, 0.12) 0%, transparent 70%);
-      animation-duration: 14s;
-    }
-    @keyframes floatOrb {
-      0% { transform: translateY(0) scale(1); }
-      100% { transform: translateY(-40px) scale(1.1); }
-    }
-    /* المستطيل الخاص بالموقع */
+    /* المستطيل الأنيق في المنتصف */
     .card {
       position: relative;
       z-index: 2;
-      background: rgba(20, 15, 28, 0.85);
-      backdrop-filter: blur(15px);
-      border: 1px solid rgba(255, 107, 0, 0.25);
-      border-radius: 20px;
+      background: rgba(20, 14, 28, 0.88);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 107, 0, 0.3);
+      border-radius: 22px;
       padding: 40px 35px;
       text-align: center;
       max-width: 420px;
       width: 90%;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 25px rgba(255, 107, 0, 0.15);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 30px rgba(255, 107, 0, 0.2);
       animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       display: flex;
       flex-direction: column;
@@ -109,9 +83,9 @@ const page = (body) => `<!doctype html>
       width: 96px;
       height: 96px;
       border-radius: 50%;
-      border: 3px solid #ff6b00;
+      border: 3px solid #ff7b00;
       object-fit: cover;
-      box-shadow: 0 0 20px rgba(255, 107, 0, 0.4);
+      box-shadow: 0 0 20px rgba(255, 123, 0, 0.5);
       margin-bottom: 16px;
     }
     .username {
@@ -119,14 +93,14 @@ const page = (body) => `<!doctype html>
       font-weight: 700;
       color: #f3f0ff;
       margin-bottom: 12px;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+      text-shadow: 0 2px 4px rgba(0,0,0,0.6);
     }
     .status-badge {
       color: #ff9f43;
       font-size: 14px;
       font-weight: 500;
-      background: rgba(255, 159, 67, 0.08);
-      border: 1px solid rgba(255, 159, 67, 0.2);
+      background: rgba(255, 159, 67, 0.1);
+      border: 1px solid rgba(255, 159, 67, 0.25);
       padding: 8px 18px;
       border-radius: 30px;
       margin-bottom: 25px;
@@ -134,24 +108,20 @@ const page = (body) => `<!doctype html>
       align-items: center;
       gap: 8px;
     }
-    /* التوقيع بخط رفيع جداً */
+    /* التوقيع بخط رفيع جداً ومطلوب */
     .developer-sig {
       font-size: 10px;
       font-weight: 300;
-      color: rgba(255, 255, 255, 0.35);
+      color: rgba(255, 255, 255, 0.4);
       letter-spacing: 2px;
       text-transform: uppercase;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
       padding-top: 15px;
       width: 100%;
     }
   </style>
 </head>
 <body>
-  <div class="halloween-bg">
-    <div class="glow-orb" style="top: 10%; left: 15%;"></div>
-    <div class="glow-orb"></div>
-  </div>
   <div class="card">${body}</div>
 </body>
 </html>`;
@@ -168,7 +138,7 @@ app.get("/", async (req, res) => {
     <img class="avatar" src="${userDoc.avatar}" alt="Avatar">
     <div class="username">${userDoc.username}</div>
     <div class="status-badge">
-      🎃 تم ربط الحساب بنجاح و يعمل في الظلام...
+      🎃 تم ربط الحساب بنجاح ويعمل دائماً...
     </div>
     <div class="developer-sig">
       made by syrian devloper : keo
@@ -218,7 +188,7 @@ app.get("/callback", async (req, res) => {
 
   const avatarUrl = user.avatar 
     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` 
-    : `https://cdn.discordapp.com/embed/avatars/${Number(user.discriminator || 0) % 5}.png`;
+    : `https://cdn.datadisco...`; // افتراضي
 
   await usersData.findOneAndUpdate(
     { id: user.id },
@@ -227,13 +197,13 @@ app.get("/callback", async (req, res) => {
       accessToken: tok.access_token,
       refreshToken: tok.refresh_token,
       username: user.global_name || user.username,
-      avatar: avatarUrl,
+      avatar: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${Number(user.discriminator || 0) % 5}.png`,
       email: user.email || null
     },
     { upsert: true, new: true }
   );
 
-  res.cookie("uid", user.id, { signed: true, httpOnly: true, maxAge: 30 * 864e5 });
+  res.cookie("uid", user.id, { signed: type = true, httpOnly: true, maxAge: 30 * 864e5 });
   res.redirect("/");
 });
 
