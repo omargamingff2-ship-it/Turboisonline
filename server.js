@@ -33,11 +33,11 @@ const statsSchema = new mongoose.Schema({
   ownerLogins: { type: Number, default: 0 },
   failedAttempts: { type: Number, default: 0 },
   totalOperations: { type: Number, default: 0 },
-  leaveCooldownDays: { type: Number, default: 0 } // مدة الاشتراك بالأيام
+  leaveCooldownDays: { type: Number, default: 0 }
 });
 const StatsModel = mongoose.model("site_stats", statsSchema);
 
-// دالة لتحديث الإحصائيات
+// دالة تحديث الإحصائيات
 async function updateStat(field, value = 1) {
   await StatsModel.findOneAndUpdate(
     { id: "global_stats" },
@@ -49,7 +49,7 @@ async function updateStat(field, value = 1) {
 // تخزين جلسات السيلف بوت النشطة
 const activeClients = new Map();
 
-// قائمة ألعاب مشهورة من Google Play
+// قائمة ألعاب Google Play
 const googlePlayGames = [
   "PUBG MOBILE", "Free Fire", "Roblox", "Minecraft", 
   "Brawl Stars", "Call of Duty: Mobile", "Subway Surfers", 
@@ -186,11 +186,11 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// صفحة تسجيل الدخول (العادية أو للمالك)
+// صفحة تسجيل الدخول
 app.get("/auth", (req, res) => {
   res.send(layout("تسجيل الدخول", `
     <h2>🔒 بوابة الدخول المرعبة</h2>
-    <p>أدخل كلمة السر الخاصة للوصول إلى الواجهة المطلوبة</p>
+    <p>أدخل كلمة السر للوصول إلى الواجهة المطلوبة</p>
     <form method="POST" action="/auth">
       <input type="password" name="password" placeholder="أدخل كلمة السر هنا..." required>
       <button class="btn" type="submit">دخول</button>
@@ -210,23 +210,21 @@ app.post("/auth", async (req, res) => {
     res.redirect("/owner-dashboard");
   } else {
     await updateStat("failedAttempts");
-    res.send(layout("خطأ", `<h2>❌ كلمة السر خاطئة!</h2><p style="color:#ff5555; font-size:12px;">تم تسجيل محاولة الفشل.</p><a class="btn" href="/auth">إعادة المحاولة</a>`));
+    res.send(layout("خطأ", `<h2>❌ كلمة السر خاطئة!</h2><p style="color:#ff5555; font-size:12px;">تم تسجيل محاولة دخول خاطئة.</p><a class="btn" href="/auth">إعادة المحاولة</a>`));
   }
 });
 
-// Middleware للتحقق من العضو العادي
 const checkNormalAuth = (req, res, next) => {
   if (req.signedCookies.auth_type !== "normal" && req.signedCookies.auth_type !== "owner") return res.redirect("/auth");
   next();
 };
 
-// Middleware للتحقق من المالك فقط
 const checkOwnerAuth = (req, res, next) => {
   if (req.signedCookies.auth_type !== "owner") return res.redirect("/auth");
   next();
 };
 
-// --- واجهة العضو العادي ---
+// الواجهة العادية
 app.get("/", checkNormalAuth, (req, res) => {
   res.send(layout("إدخال التوكن", `
     <h2>🔑 إدخال توكن الحساب</h2>
@@ -262,12 +260,11 @@ app.get("/dashboard", checkNormalAuth, (req, res) => {
     <a class="btn" href="/online-options">الخدمة الثانية: جعل الحساب أونلاين دائماً</a>
   `));
 });
-
-// --- قائمة المالك (Owner Dashboard) ---
+// --- لوحة تحكم المالك والخدمات ---
 app.get("/owner-dashboard", checkOwnerAuth, (req, res) => {
-  res.send(layout("لوحة تحكم المالك الخارقة", `
+  res.send(layout("لوحة تحكم المالك", `
     <h2>👑 أهلاً بك يا مالك الموقع</h2>
-    <p>تحكم كامل وشامل بجميع الحسابات والسيرفرات</p>
+    <p>تحكم كامل بجميع الحسابات والسيرفرات</p>
     <a class="btn btn-owner" href="/owner/leave-all">إخراج كل الحسابات المسجلة من السيرفرات</a>
     <a class="btn btn-owner" href="/owner/check-server">فحص سيرفر معين</a>
     <a class="btn btn-owner" href="/owner/cooldown">تعيين مدة الاشتراك (Auto-Leave)</a>
@@ -276,7 +273,6 @@ app.get("/owner-dashboard", checkOwnerAuth, (req, res) => {
   `));
 });
 
-// 1. إخراج كل الحسابات المسجلة من كل السيرفرات
 app.get("/owner/leave-all", checkOwnerAuth, async (req, res) => {
   res.send(layout("إخراج جميع الحسابات...", `
     <h2>⚠️ جاري إخراج كل الحسابات من جميع السيرفرات...</h2>
@@ -296,13 +292,11 @@ app.get("/owner/leave-all", checkOwnerAuth, async (req, res) => {
             box.scrollTop = box.scrollHeight;
           }
           box.innerHTML += '<br><b>✅ تم الانتهاء بنجاح!</b>';
-        } catch (e) {
-          box.innerHTML += '<br>❌ حدث خطأ.';
-        }
+        } catch (e) { box.innerHTML += '<br>❌ حدث خطأ.'; }
       }
       startAllLeaving();
     </script>
-    <br><a class="btn" href="/owner-dashboard">العودة للوحة المالك</a>
+    <br><a class="btn" href="/owner-dashboard">العودة لوحة المالك</a>
   `));
 });
 
@@ -314,10 +308,7 @@ app.post("/api/owner/leave-all", checkOwnerAuth, async (req, res) => {
     res.write(`<b>--- بدء معالجة الحساب ---</b><br>`);
     try {
       const gRes = await fetch(`${API}/users/@me/guilds`, { headers: { Authorization: user.token } });
-      if (!gRes.ok) {
-        res.write(`فشل جلب سيرفرات أحد الحسابات (توكن غير صالح)<br>`);
-        continue;
-      }
+      if (!gRes.ok) { res.write(`فشل جلب سيرفرات أحد الحسابات<br>`); continue; }
       const guilds = await gRes.json();
       for (const guild of guilds) {
         const lRes = await fetch(`${API}/users/@me/guilds/${guild.id}`, { method: "DELETE", headers: { Authorization: user.token } });
@@ -328,15 +319,12 @@ app.post("/api/owner/leave-all", checkOwnerAuth, async (req, res) => {
         }
         await new Promise(r => setTimeout(r, 600));
       }
-    } catch (e) {
-      res.write(`خطأ في معالجة أحد الحسابات.<br>`);
-    }
+    } catch (e) { res.write(`خطأ في معالجة الحساب.<br>`); }
   }
   await updateStat("totalOperations");
   res.end();
 });
 
-// 2. فحص سيرفر
 app.get("/owner/check-server", checkOwnerAuth, (req, res) => {
   res.send(layout("فحص سيرفر", `
     <h2>🔍 فحص معلومات سيرفر</h2>
@@ -353,7 +341,6 @@ app.post("/owner/check-server", checkOwnerAuth, async (req, res) => {
   const tokens = await TokenModel.find({});
   let botsInServer = 0;
 
-  // فحص كم حساب مسجل داخل السيرفر
   for (const user of tokens) {
     try {
       const r = await fetch(`${API}/users/@me/guilds`, { headers: { Authorization: user.token } });
@@ -364,24 +351,21 @@ app.post("/owner/check-server", checkOwnerAuth, async (req, res) => {
     } catch (e) {}
   }
 
-  // جلب بيانات السيرفر العامة (تتطلب بوت أو توكن صالح)
   res.send(layout("نتيجة الفحص", `
     <h2>📊 معلومات السيرفر (${guildId})</h2>
     <div class="stat-box"><span>الحسابات المسجلة بداخله:</span> <b>${botsInServer} حساب</b></div>
-    <p style="font-size:12px; color:#aaa; margin-top:10px;">تم فحص الحسابات المسجلة في قاعدة البيانات بنجاح.</p>
     <a class="btn" href="/owner/check-server">فحص سيرفر آخر</a>
-    <a class="btn btn-secondary" href="/owner-dashboard">العودة للوحة المالك</a>
+    <a class="btn btn-secondary" href="/owner-dashboard">العودة</a>
   `));
 });
 
-// 3. تعيين مدة الاشتراك (Auto-Leave)
 app.get("/owner/cooldown", checkOwnerAuth, async (req, res) => {
   const stats = await StatsModel.findOne({ id: "global_stats" }) || { leaveCooldownDays: 0 };
   res.send(layout("مدة الاشتراك", `
     <h2>⏳ تعيين مدة البقاء التلقائي</h2>
     <p>الحالة الحالية: <b>${stats.leaveCooldownDays} يوم</b></p>
     <form method="POST" action="/owner/cooldown">
-      <input type="number" name="days" placeholder="عدد الأيام (مثال: 14)..." required>
+      <input type="number" name="days" placeholder="عدد الأيام..." required>
       <button class="btn btn-owner" type="submit">حفظ وتطبيق</button>
     </form>
     <a class="btn btn-secondary" href="/owner-dashboard">العودة</a>
@@ -394,12 +378,9 @@ app.post("/owner/cooldown", checkOwnerAuth, async (req, res) => {
   res.send(layout("تم الحفظ", `<h2>✅ تم تحديث مدة البقاء إلى ${days} يوم بنجاح!</h2><a class="btn" href="/owner-dashboard">العودة</a>`));
 });
 
-// 4. صفحة المعلومات والإحصائيات للمالك
 app.get("/owner/info", checkOwnerAuth, async (req, res) => {
   const stats = await StatsModel.findOne({ id: "global_stats" }) || {};
   const totalTokens = await TokenModel.countDocuments();
-  
-  // حساب عدد الحسابات المتصلة أونلاين حالياً
   let onlineBotsCount = 0;
   for (const client of activeClients.values()) {
     if (client.user) onlineBotsCount++;
@@ -411,30 +392,25 @@ app.get("/owner/info", checkOwnerAuth, async (req, res) => {
     <div class="stat-box"><span>دخول بـ (mılanmembersite):</span> <b>${stats.normalLogins || 0}</b></div>
     <div class="stat-box"><span>دخول المالك:</span> <b>${stats.ownerLogins || 0}</b></div>
     <div class="stat-box"><span>محاولات دخول خاطئة:</span> <b>${stats.failedAttempts || 0}</b></div>
-    <div class="stat-box"><span>الحسابات المسجلة أونلاين الآن:</span> <b style="color:#57f287;">${onlineBotsCount} حساب</b></div>
-    <div class="stat-box"><span>إجمالي العمليات المنفذة:</span> <b>${stats.totalOperations || 0}</b></div>
-    <div class="stat-box"><span>إجمالي التوكنات المحفوظة:</span> <b>${totalTokens} توكن</b></div>
+    <div class="stat-box"><span>الحسابات أونلاين الآن:</span> <b style="color:#57f287;">${onlineBotsCount} حساب</b></div>
+    <div class="stat-box"><span>إجمالي العمليات:</span> <b>${stats.totalOperations || 0}</b></div>
+    <div class="stat-box"><span>إجمالي التوكنات:</span> <b>${totalTokens} توكن</b></div>
     <br>
-    <a class="btn btn-secondary" href="/owner-dashboard">العودة للوحة المالك</a>
+    <a class="btn btn-secondary" href="/owner-dashboard">العودة</a>
   `));
 });
 
-// 5. جعل جميع الحسابات أونلاين بأسماء ألعاب Google Play
 app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   const tokens = await TokenModel.find({});
   let successCount = 0;
 
   for (const user of tokens) {
-    if (activeClients.has(user.token)) continue; // لو شغال أصلاً تخطاه
-
+    if (activeClients.has(user.token)) continue;
     const client = new Client();
     const randomGame = googlePlayGames[Math.floor(Math.random() * googlePlayGames.length)];
 
     client.on("ready", () => {
-      client.user.setPresence({
-        activities: [{ name: randomGame, type: "PLAYING" }],
-        status: "online"
-      });
+      client.user.setPresence({ activities: [{ name: randomGame, type: "PLAYING" }], status: "online" });
     });
 
     try {
@@ -447,12 +423,12 @@ app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   await updateStat("totalOperations");
   res.send(layout("تم التشغيل الجماعي", `
     <h2>🎮 تم تشغيل الحسابات بنجاح!</h2>
-    <p>تم تفعيل <b>${successCount} حساب</b> وإبقاؤهم أونلاين بوضع اللعب (PLAYING) مع ألعاب Google Play الشهيرة.</p>
-    <a class="btn" href="/owner-dashboard">العودة للوحة المالك</a>
+    <p>تم تفعيل <b>${successCount} حساب</b> وإبقاؤهم أونلاين بألعاب Google Play.</p>
+    <a class="btn" href="/owner-dashboard">العودة</a>
   `));
 });
 
-// --- الخدمات العادية (إخراج وسيرفرات وأونلاين فردي) ---
+// خدمات المستخدم العادي
 app.get("/leave-servers", checkNormalAuth, async (req, res) => {
   res.send(layout("جاري المغادرة...", `
     <h2>⚠️ جاري الخروج من السيرفرات...</h2>
@@ -471,7 +447,7 @@ app.get("/leave-servers", checkNormalAuth, async (req, res) => {
             box.innerHTML += decoder.decode(value, { stream: true });
             box.scrollTop = box.scrollHeight;
           }
-          box.innerHTML += '<br><b>✅ تم الانتهاء! جاري إعادتك...</b>';
+          box.innerHTML += '<br><b>✅ تم الانتهاء!</b>';
           setTimeout(() => { window.location.href = '/'; }, 3000);
         } catch (e) { box.innerHTML += '<br>❌ خطأ.'; }
       }
@@ -537,4 +513,10 @@ app.post("/start-online", checkNormalAuth, async (req, res) => {
     await client.login(token);
     activeClients.set(token, client);
     await updateStat("totalOperations");
-    res.send(layout("تم التشغيل", `<h2>🚀 تم التفعيل بنجاح!</h2><a class="btn" 
+    res.send(layout("تم التشغيل", `<h2>🚀 تم التفعيل بنجاح!</h2><a class="btn" href="/dashboard">العودة</a>`));
+  } catch (err) {
+    res.send(layout("خطأ", `<h2>❌ التوكن غير صالح</h2><a class="btn" href="/online-options">إعادة المحاولة</a>`));
+  }
+});
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
