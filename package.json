@@ -1,14 +1,12 @@
 {
-  "name": "discord-oauth-site",
+  "name": "discord-join-site",
   "version": "1.0.0",
-  "description": "موقع مخصص لتفويض بوت ديسكورد",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "scripts": { "start": "node server.js" },
   "dependencies": {
-    "axios": "^1.7.7",
+    "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1"
+    "express": "^4.19.2",
+    "mongoose": "^8.0.0"
   }
 }
