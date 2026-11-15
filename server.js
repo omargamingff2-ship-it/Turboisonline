@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cookieParser = require("cookie-parser");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { Client } = require("discord.js-selfbot-v13");
 
@@ -12,20 +13,17 @@ const {
 
 const API = "https://discord.com/api/v10";
 
-// الاتصال بقاعدة البيانات
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(() => console.log("Connected to MongoDB!")).catch(err => console.error(err));
 
-// نموذج تخزين التوكنات
 const userSchema = new mongoose.Schema({
   token: { type: String, required: true, unique: true },
   createdAt: { type: Date, default: Date.now }
 });
 const TokenModel = mongoose.model("bot_tokens", userSchema);
 
-// نموذج تخزين الإحصائيات
 const statsSchema = new mongoose.Schema({
   id: { type: String, default: "global_stats" },
   visitors: { type: Number, default: 0 },
@@ -37,7 +35,6 @@ const statsSchema = new mongoose.Schema({
 });
 const StatsModel = mongoose.model("site_stats", statsSchema);
 
-// دالة تحديث الإحصائيات
 async function updateStat(field, value = 1) {
   await StatsModel.findOneAndUpdate(
     { id: "global_stats" },
@@ -46,10 +43,9 @@ async function updateStat(field, value = 1) {
   );
 }
 
-// تخزين جلسات السيلف بوت النشطة
 const activeClients = new Map();
+const activeSessions = new Map();
 
-// قائمة ألعاب Google Play
 const googlePlayGames = [
   "PUBG MOBILE", "Free Fire", "Roblox", "Minecraft", 
   "Brawl Stars", "Call of Duty: Mobile", "Subway Surfers", 
@@ -60,8 +56,7 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(COOKIE_SECRET));
 
-// القالب التصميمي الموحد (الهالووين)
-const layout = (title, content) => `<!doctype html>
+const layout = (title, content, autoLock = true) => `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
@@ -135,6 +130,26 @@ const layout = (title, content) => `<!doctype html>
       background: linear-gradient(135deg, #8a2be2, #4b0082);
       box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
     }
+    .avatar {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      border: 3px solid #ff7b00;
+      object-fit: cover;
+      box-shadow: 0 0 20px rgba(255, 123, 0, 0.5);
+      margin-bottom: 16px;
+    }
+    .username {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f3f0ff;
+      margin-bottom: 6px;
+    }
+    .user-tag {
+      font-size: 13px;
+      color: #b8b5e0;
+      margin-bottom: 20px;
+    }
     .logs-box {
       background: rgba(5, 2, 10, 0.95);
       border: 1px solid rgba(255, 107, 0, 0.3);
@@ -175,90 +190,159 @@ const layout = (title, content) => `<!doctype html>
     ${content}
     <div class="developer-sig">made by syrian devloper : keo</div>
   </div>
+  ${autoLock ? `
+  <script>
+    window.addEventListener("pagehide", () => {
+      navigator.sendBeacon("/logout-beacon");
+    });
+  </script>` : ""}
 </body>
 </html>`;
 
-// تتبع الزيارات
-app.use(async (req, res, next) => {
-  if (req.path === "/auth" && req.method === "GET") {
-    await updateStat("visitors");
-  }
-  next();
+app.post("/logout-beacon", (req, res) => {
+  const sid = req.signedCookies.sid;
+  if (sid) activeSessions.delete(sid);
+  res.clearCookie("sid");
+  res.clearCookie("user_token");
+  res.sendStatus(204);
 });
 
-// صفحة تسجيل الدخول
+app.get("/", async (req, res) => {
+  const sid = req.signedCookies.sid;
+  if (sid) activeSessions.delete(sid);
+  res.clearCookie("sid");
+  res.clearCookie("user_token");
+  await updateStat("visitors");
+  res.redirect("/auth");
+});
+
 app.get("/auth", (req, res) => {
   res.send(layout("تسجيل الدخول", `
     <h2>🔒 بوابة الدخول المرعبة</h2>
     <p>أدخل كلمة السر للوصول إلى الواجهة المطلوبة</p>
     <form method="POST" action="/auth">
-      <input type="password" name="password" placeholder="أدخل كلمة السر هنا..." required>
+      <input type="password" name="password" placeholder="أدخل كلمة السر هنا..." required autocomplete="off">
       <button class="btn" type="submit">دخول</button>
     </form>
-  `));
+  `, false));
 });
 
 app.post("/auth", async (req, res) => {
   const { password } = req.body;
+  const sessionId = crypto.randomBytes(24).toString("hex");
+
   if (password === "mılanmembersite") {
     await updateStat("normalLogins");
-    res.cookie("auth_type", "normal", { signed: true, httpOnly: true });
-    res.redirect("/");
+    activeSessions.set(sessionId, { role: "normal", expires: Date.now() + 10 * 60 * 1000 });
+    res.cookie("sid", sessionId, { signed: true, httpOnly: true });
+    res.redirect("/token-entry");
   } else if (password === "73849274628491837465djfbfbrhdjzkkieueiwksndnxbxjxdjehrbrjfjjdhwwiowjddbskdb9283746518293746xkfbfbrhdjzjjkiieueiwksndnxbx") {
     await updateStat("ownerLogins");
-    res.cookie("auth_type", "owner", { signed: true, httpOnly: true });
+    activeSessions.set(sessionId, { role: "owner", expires: Date.now() + 10 * 60 * 1000 });
+    res.cookie("sid", sessionId, { signed: true, httpOnly: true });
     res.redirect("/owner-dashboard");
   } else {
     await updateStat("failedAttempts");
-    res.send(layout("خطأ", `<h2>❌ كلمة السر خاطئة!</h2><p style="color:#ff5555; font-size:12px;">تم تسجيل محاولة دخول خاطئة.</p><a class="btn" href="/auth">إعادة المحاولة</a>`));
+    res.send(layout("خطأ", `<h2>❌ كلمة السر خاطئة!</h2><p style="color:#ff5555; font-size:12px;">تم تسجيل محاولة دخول خاطئة.</p><a class="btn" href="/auth">إعادة المحاولة</a>`, false));
   }
 });
 
 const checkNormalAuth = (req, res, next) => {
-  if (req.signedCookies.auth_type !== "normal" && req.signedCookies.auth_type !== "owner") return res.redirect("/auth");
+  const sid = req.signedCookies.sid;
+  const session = activeSessions.get(sid);
+  if (!session || session.expires < Date.now() || (session.role !== "normal" && session.role !== "owner")) {
+    activeSessions.delete(sid);
+    return res.redirect("/auth");
+  }
   next();
 };
 
 const checkOwnerAuth = (req, res, next) => {
-  if (req.signedCookies.auth_type !== "owner") return res.redirect("/auth");
+  const sid = req.signedCookies.sid;
+  const session = activeSessions.get(sid);
+  if (!session || session.expires < Date.now() || session.role !== "owner") {
+    activeSessions.delete(sid);
+    return res.redirect("/auth");
+  }
   next();
 };
 
-// الواجهة العادية
-app.get("/", checkNormalAuth, (req, res) => {
+// صفحة إدخال التوكن مع قائمة اختيار الخدمة مسبقاً
+app.get("/token-entry", checkNormalAuth, (req, res) => {
   res.send(layout("إدخال التوكن", `
-    <h2>🔑 إدخال توكن الحساب</h2>
-    <p>أدخل توكن حساب ديسكورد الخاص بك للمتابعة</p>
-    <form method="POST" action="/save-token">
-      <input type="text" name="token" placeholder="ضع التوكن هنا..." required>
-      <button class="btn" type="submit">حفظ ومتابعة</button>
+    <h2>🔑 إدخال وتفقد التوكن</h2>
+    <p>اختر الخدمة المطلوبة أولاً، ثم ضع توكن حسابك للفحص والتحقق</p>
+    <form method="POST" action="/verify-token">
+      <select name="serviceType" style="margin-bottom: 15px;" required>
+        <option value="leave">الخدمة الأولى: إخراج الحساب من السيرفرات</option>
+        <option value="online">الخدمة الثانية: جعل الحساب أونلاين دائماً</option>
+      </select>
+      <input type="text" name="token" placeholder="ضع توكن الحساب هنا..." required autocomplete="off">
+      <button class="btn" type="submit">فحص التوكن ومتابعة</button>
     </form>
   `));
 });
 
-app.post("/save-token", checkNormalAuth, async (req, res) => {
-  const { token } = req.body;
-  if (!token) return res.redirect("/");
+// فحص صحة التوكن عبر ديسكورد API
+app.post("/verify-token", checkNormalAuth, async (req, res) => {
+  const { token, serviceType } = req.body;
+  if (!token) return res.redirect("/token-entry");
+
   try {
+    // فحص التوكن عبر جلب بيانات المستخدم
+    const userRes = await fetch(`${API}/users/@me`, {
+      headers: { Authorization: token }
+    });
+
+    if (!userRes.ok) {
+      return res.send(layout("فحص التوكن", `
+        <h2>❌ التوكن غير سليم أو غير شغال!</h2>
+        <p style="color:#ff5555;">تأكد من إدخال توكن حساب حقيقي وصحيح.</p>
+        <a class="btn" href="/token-entry">إعادة المحاولة</a>
+      `));
+    }
+
+    const userData = await userRes.json();
+    const avatarUrl = userData.avatar 
+      ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` 
+      : `https://cdn.discordapp.com/embed/avatars/${Number(userData.discriminator || 0) % 5}.png`;
+
+    // حفظ التوكن في قاعدة البيانات بعد التأكد أنه سليم
     await TokenModel.findOneAndUpdate({ token }, { token }, { upsert: true, new: true });
     await updateStat("totalOperations");
+    
     res.cookie("user_token", token, { signed: true, httpOnly: true });
-    res.redirect("/dashboard");
+    res.cookie("selected_service", serviceType, { signed: true, httpOnly: true });
+
+    // عرض صفحة الحساب مع معلوماته وزر التخطي
+    res.send(layout("تم التحقق من الحساب", `
+      <img class="avatar" src="${avatarUrl}" alt="Avatar">
+      <div class="username">${userData.global_name || userData.username}</div>
+      <div class="user-tag">@${userData.username}</div>
+      <div class="status-badge" style="color:#57f287; background:rgba(87,242,135,0.1); border:1px solid rgba(87,242,135,0.3); padding:8px; border-radius:20px; margin-bottom:20px; font-size:13px;">
+        ✅ التوكن سليم وشغال 100%
+      </div>
+      <a class="btn" href="/proceed-service">تخطي والانتقال للخدمة المطلوبة</a>
+    `));
+
   } catch (err) {
-    res.send(layout("خطأ", `<h2>❌ حدث خطأ</h2><a class="btn" href="/">العودة</a>`));
+    res.send(layout("خطأ", `
+      <h2>❌ حدث خطأ أثناء فحص التوكن</h2>
+      <a class="btn" href="/token-entry">إعادة المحاولة</a>
+    `));
   }
 });
 
-app.get("/dashboard", checkNormalAuth, (req, res) => {
-  const token = req.signedCookies.user_token;
-  if (!token) return res.redirect("/");
-
-  res.send(layout("لوحة التحكم", `
-    <h2>🦇 شو الخدمة الي تبيها يا معلم؟</h2>
-    <p>اختر الخدمة المطلوبة لحسابك</p>
-    <a class="btn" href="/leave-servers">الخدمة الأولى: إخراج الحساب من السيرفرات</a>
-    <a class="btn" href="/online-options">الخدمة الثانية: جعل الحساب أونلاين دائماً</a>
-  `));
+// التوجيه للخدمة المطلوبة بناءً على اختيار المستخدم
+app.get("/proceed-service", checkNormalAuth, (req, res) => {
+  const service = req.signedCookies.selected_service;
+  if (service === "leave") {
+    res.redirect("/leave-servers");
+  } else if (service === "online") {
+    res.redirect("/online-options");
+  } else {
+    res.redirect("/token-entry");
+  }
 });
 // --- لوحة تحكم المالك والخدمات ---
 app.get("/owner-dashboard", checkOwnerAuth, (req, res) => {
@@ -428,7 +512,7 @@ app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   `));
 });
 
-// خدمات المستخدم العادي
+// تنفيذ الخدمات العادية
 app.get("/leave-servers", checkNormalAuth, async (req, res) => {
   res.send(layout("جاري المغادرة...", `
     <h2>⚠️ جاري الخروج من السيرفرات...</h2>
@@ -448,7 +532,7 @@ app.get("/leave-servers", checkNormalAuth, async (req, res) => {
             box.scrollTop = box.scrollHeight;
           }
           box.innerHTML += '<br><b>✅ تم الانتهاء!</b>';
-          setTimeout(() => { window.location.href = '/'; }, 3000);
+          setTimeout(() => { window.location.href = '/token-entry'; }, 3000);
         } catch (e) { box.innerHTML += '<br>❌ خطأ.'; }
       }
       startLeaving();
@@ -490,14 +574,14 @@ app.get("/online-options", checkNormalAuth, (req, res) => {
       <input type="text" name="statusText" placeholder="اسم النشاط..." required>
       <button class="btn" type="submit">تشغيل الحالة</button>
     </form>
-    <a class="btn btn-secondary" href="/dashboard">العودة</a>
+    <a class="btn btn-secondary" href="/token-entry">العودة</a>
   `));
 });
 
 app.post("/start-online", checkNormalAuth, async (req, res) => {
   const token = req.signedCookies.user_token;
   const { statusType, statusText } = req.body;
-  if (!token) return res.redirect("/");
+  if (!token) return res.redirect("/token-entry");
 
   if (activeClients.has(token)) {
     try { activeClients.get(token).destroy(); } catch(e){}
@@ -513,7 +597,7 @@ app.post("/start-online", checkNormalAuth, async (req, res) => {
     await client.login(token);
     activeClients.set(token, client);
     await updateStat("totalOperations");
-    res.send(layout("تم التشغيل", `<h2>🚀 تم التفعيل بنجاح!</h2><a class="btn" href="/dashboard">العودة</a>`));
+    res.send(layout("تم التشغيل", `<h2>🚀 تم التفعيل بنجاح!</h2><a class="btn" href="/token-entry">العودة</a>`));
   } catch (err) {
     res.send(layout("خطأ", `<h2>❌ التوكن غير صالح</h2><a class="btn" href="/online-options">إعادة المحاولة</a>`));
   }
