@@ -6,7 +6,7 @@ const { Client } = require("discord.js-selfbot-v13");
 
 const {
   PORT = 3000,
-  MONGO_URI = "mongodb://Gojocat-newuser1:9pcvtGac@ac-bmcspcl-shard-00-00.wfkfa3z.mongodb.net:27017,ac-bmcspcl-shard-00-01.wfkfa3z.mongodb.net:27017,ac-bmcspcl-shard-00-02.wfkfa3z.mongodb.net:27017/?ssl=true&replicaSet=atlas-yfnau8-shard-0&authSource=admin&compressors=zlib",
+  MONGO_URI = "mongodb+srv://omargamingff2_db_user:CT8NNal0NVdHdoB9@cluster0.pab2lk3.mongodb.net/",
   COOKIE_SECRET = "keo_secret_key_999"
 } = process.env;
 
