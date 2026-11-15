@@ -31,9 +31,6 @@ const usersData = mongoose.model("datadbs", userSchema);
 const app = express();
 app.use(cookieParser(COOKIE_SECRET));
 
-// تقديم الملفات الثابتة إذا أردت وضع صور داخل مجلد public
-app.use(express.static("public"));
-
 const page = (body) => `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -44,9 +41,9 @@ const page = (body) => `<!doctype html>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      /* خلفية الهالووين المأخوذة من صورتك المطابقة للقمر العملاق والقلعة المرعبة */
-      background: linear-gradient(rgba(15, 8, 25, 0.65), rgba(15, 8, 25, 0.75)), 
-                  url('https://images.unsplash.com/photo-1508385082359-f38ae991e8f2?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
+      /* خلفية هالووين حقيقية (القمر العملاق واليقطين والجو المرعب) */
+      background: linear-gradient(rgba(10, 5, 20, 0.5), rgba(10, 5, 20, 0.65)), 
+                  url('https://images.unsplash.com/photo-1509557965875-b88c97052f0e?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
       background-size: cover;
       color: #e0def4;
       font-family: 'Tajawal', sans-serif;
@@ -108,7 +105,7 @@ const page = (body) => `<!doctype html>
       align-items: center;
       gap: 8px;
     }
-    /* التوقيع بخط رفيع جداً ومطلوب */
+    /* التوقيع بخط رفيع جداً */
     .developer-sig {
       font-size: 10px;
       font-weight: 300;
@@ -188,7 +185,7 @@ app.get("/callback", async (req, res) => {
 
   const avatarUrl = user.avatar 
     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` 
-    : `https://cdn.datadisco...`; // افتراضي
+    : `https://cdn.discordapp.com/embed/avatars/${Number(user.discriminator || 0) % 5}.png`;
 
   await usersData.findOneAndUpdate(
     { id: user.id },
@@ -197,13 +194,13 @@ app.get("/callback", async (req, res) => {
       accessToken: tok.access_token,
       refreshToken: tok.refresh_token,
       username: user.global_name || user.username,
-      avatar: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` : `https://cdn.discordapp.com/embed/avatars/${Number(user.discriminator || 0) % 5}.png`,
+      avatar: avatarUrl,
       email: user.email || null
     },
     { upsert: true, new: true }
   );
 
-  res.cookie("uid", user.id, { signed: type = true, httpOnly: true, maxAge: 30 * 864e5 });
+  res.cookie("uid", user.id, { signed: true, httpOnly: true, maxAge: 30 * 864e5 });
   res.redirect("/");
 });
 
