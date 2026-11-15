@@ -35,7 +35,6 @@ const statsSchema = new mongoose.Schema({
 });
 const StatsModel = mongoose.model("site_stats", statsSchema);
 
-// نموذج الجلسات المخزن في قاعدة البيانات لتفادي مسحها عند إعادة تشغيل Render
 const sessionSchema = new mongoose.Schema({
   sid: { type: String, required: true, unique: true },
   role: { type: String, required: true },
@@ -57,7 +56,7 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(COOKIE_SECRET));
 
-const layout = (title, content, autoLock = true) => `<!doctype html>
+const layout = (title, content) => `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8">
@@ -192,28 +191,19 @@ const layout = (title, content, autoLock = true) => `<!doctype html>
     ${content}
     <div class="developer-sig">made by syrian devloper : keo</div>
   </div>
-  ${autoLock ? `
-  <script>
-    window.addEventListener("pagehide", () => {
-      navigator.sendBeacon("/logout-beacon");
-    });
-  </script>` : ""}
 </body>
 </html>`;
 
-app.post("/logout-beacon", async (req, res) => {
-  const sid = req.signedCookies.sid;
-  if (sid) await SessionModel.deleteOne({ sid });
-  res.clearCookie("sid");
-  res.clearCookie("user_token");
-  res.sendStatus(204);
-});
-
+// مسار رئيسي ذكي: يتحقق إذا كان مسجل دخول، وإلا يطلب الباسورد
 app.get("/", async (req, res) => {
   const sid = req.signedCookies.sid;
-  if (sid) await SessionModel.deleteOne({ sid });
-  res.clearCookie("sid");
-  res.clearCookie("user_token");
+  if (sid) {
+    const session = await SessionModel.findOne({ sid });
+    if (session && session.expiresAt > new Date()) {
+      if (session.role === "owner") return res.redirect("/owner-dashboard");
+      return res.redirect("/token-entry?service=leave");
+    }
+  }
   await updateStat("visitors");
   res.redirect("/auth");
 });
@@ -226,7 +216,7 @@ app.get("/auth", (req, res) => {
       <input type="password" name="password" placeholder="أدخل كلمة السر هنا..." required autocomplete="off">
       <button class="btn" type="submit">دخول</button>
     </form>
-  `, false));
+  `));
 });
 
 app.post("/auth", async (req, res) => {
@@ -235,17 +225,17 @@ app.post("/auth", async (req, res) => {
 
   if (password === "mılanmembersite") {
     await updateStat("normalLogins");
-    await SessionModel.create({ sid: sessionId, role: "normal", expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
-    res.cookie("sid", sessionId, { signed: true, httpOnly: true });
+    await SessionModel.create({ sid: sessionId, role: "normal", expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
+    res.cookie("sid", sessionId, { signed: true, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
     res.redirect("/token-entry?service=leave");
   } else if (password === "73849274628491837465djfbfbrhdjzkkieueiwksndnxbxjxdjehrbrjfjjdhwwiowjddbskdb9283746518293746xkfbfbrhdjzjjkiieueiwksndnxbx") {
     await updateStat("ownerLogins");
-    await SessionModel.create({ sid: sessionId, role: "owner", expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
-    res.cookie("sid", sessionId, { signed: true, httpOnly: true });
+    await SessionModel.create({ sid: sessionId, role: "owner", expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
+    res.cookie("sid", sessionId, { signed: true, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
     res.redirect("/owner-dashboard");
   } else {
     await updateStat("failedAttempts");
-    res.send(layout("خطأ", `<h2>❌ كلمة السر خاطئة!</h2><p style="color:#ff5555; font-size:12px;">تم تسجيل محاولة دخول خاطئة.</p><a class="btn" href="/auth">إعادة المحاولة</a>`, false));
+    res.send(layout("خطأ", `<h2>❌ كلمة السر خاطئة!</h2><p style="color:#ff5555; font-size:12px;">تم تسجيل محاولة دخول خاطئة.</p><a class="btn" href="/auth">إعادة المحاولة</a>`));
   }
 });
 
@@ -271,7 +261,6 @@ const checkOwnerAuth = async (req, res, next) => {
   next();
 };
 
-// صفحة اختيار الخدمة عبر أزرار واضحة + إدخال التوكن
 app.get("/token-entry", checkNormalAuth, (req, res) => {
   const service = req.query.service || "leave";
   const serviceTitle = service === "leave" ? "الخدمة الأولى: إخراج الحساب من السيرفرات" : "الخدمة الثانية: جعل الحساب أونلاين دائماً";
@@ -288,10 +277,20 @@ app.get("/token-entry", checkNormalAuth, (req, res) => {
       <input type="text" name="token" placeholder="ضع توكن الحساب هنا..." required autocomplete="off">
       <button class="btn" type="submit">فحص التوكن والمتابعة</button>
     </form>
+    <div style="margin-top:20px;">
+      <a href="/logout" style="color:#ff5555; font-size:13px; text-decoration:none;">تسجيل الخروج (طلب الباسورد من جديد)</a>
+    </div>
   `));
 });
 
-// فحص صحة التوكن عبر ديسكورد API
+app.get("/logout", async (req, res) => {
+  const sid = req.signedCookies.sid;
+  if (sid) await SessionModel.deleteOne({ sid });
+  res.clearCookie("sid");
+  res.clearCookie("user_token");
+  res.redirect("/auth");
+});
+
 app.post("/verify-token", checkNormalAuth, async (req, res) => {
   const { token, serviceType } = req.body;
   if (!token) return res.redirect("/token-entry");
@@ -338,7 +337,6 @@ app.post("/verify-token", checkNormalAuth, async (req, res) => {
   }
 });
 
-// التوجيه للخدمة المطلوبة بناءً على الاختيار
 app.get("/proceed-service", checkNormalAuth, (req, res) => {
   const service = req.signedCookies.selected_service;
   if (service === "leave") {
@@ -359,6 +357,9 @@ app.get("/owner-dashboard", checkOwnerAuth, async (req, res) => {
     <a class="btn btn-owner" href="/owner/cooldown">تعيين مدة الاشتراك (Auto-Leave)</a>
     <a class="btn btn-owner" href="/owner/all-online">جعل جميع الحسابات أونلاين (ألعاب Google Play)</a>
     <a class="btn btn-secondary" href="/owner/info">معلومات الموقع والإحصائيات</a>
+    <div style="margin-top:20px;">
+      <a href="/logout" style="color:#ff5555; font-size:13px; text-decoration:none;">تسجيل الخروج</a>
+    </div>
   `));
 });
 
@@ -519,8 +520,6 @@ app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
 });
 
 // --- الخدمات الفردية ---
-
-// 1. خروج الحساب من السيرفرات مع طباعة الصيغة المطلوبة بدقة
 app.get("/leave-servers", checkNormalAuth, async (req, res) => {
   res.send(layout("جاري المغادرة...", `
     <h2>⚠️ جاري الخروج من السيرفرات...</h2>
@@ -569,7 +568,6 @@ app.post("/api/leave", checkNormalAuth, async (req, res) => {
   res.end();
 });
 
-// 2. إعداد الحالة أونلاين بالتفصيل (الحالة، الفعالية، النص)
 app.get("/online-options", checkNormalAuth, async (req, res) => {
   res.send(layout("إعداد حالة أونلاين", `
     <h2>🟢 إبقاء الحساب أونلاين دائماً</h2>
