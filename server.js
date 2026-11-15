@@ -36,15 +36,15 @@ const page = (body) => `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ربط الحساب - Discord Authentication</title>
+  <title>Halloween Authentication - KEO</title>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      /* خلفية المحارب الذي يمسك علم */
-      background: linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.65)), url('https://i.pinimg.com/736x/87/40/e6/8740e608034c264a935beee2e0435df2.jpg') no-repeat center center fixed;
-      background-size: cover;
-      color: #dbdee1;
+      background: linear-gradient(135deg, #120d1a 0%, #1f0c24 50%, #08060a 100%);
+      background-size: 400% 400%;
+      animation: spookyBg 15s ease infinite;
+      color: #e0def4;
       font-family: 'Tajawal', sans-serif;
       min-height: 100vh;
       display: flex;
@@ -53,17 +53,50 @@ const page = (body) => `<!doctype html>
       overflow: hidden;
       position: relative;
     }
+    @keyframes spookyBg {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    /* تأثيرات خلفية الهالووين المتحركة */
+    .halloween-bg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .glow-orb {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      background: radial-gradient(circle, rgba(255, 107, 0, 0.12) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: floatOrb 10s ease-in-out infinite alternate;
+    }
+    .glow-orb:nth-child(2) {
+      top: 60%; left: 70%;
+      background: radial-gradient(circle, rgba(138, 43, 226, 0.12) 0%, transparent 70%);
+      animation-duration: 14s;
+    }
+    @keyframes floatOrb {
+      0% { transform: translateY(0) scale(1); }
+      100% { transform: translateY(-40px) scale(1.1); }
+    }
+    /* المستطيل الخاص بالموقع */
     .card {
-      background: rgba(43, 45, 49, 0.88);
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 24px;
-      padding: 35px 30px;
+      position: relative;
+      z-index: 2;
+      background: rgba(20, 15, 28, 0.85);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 107, 0, 0.25);
+      border-radius: 20px;
+      padding: 40px 35px;
       text-align: center;
-      max-width: 550px;
-      width: 92%;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
-      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 25px rgba(255, 107, 0, 0.15);
+      animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -72,107 +105,53 @@ const page = (body) => `<!doctype html>
       from { opacity: 0; transform: translateY(20px) scale(0.95); }
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
-    .main-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 15px;
-      width: 100%;
-      margin-bottom: 25px;
-    }
-    /* مربع الفارس الذي يحمل التاج (على اليسار) */
-    .knight-box {
-      width: 75px;
-      height: 75px;
-      border-radius: 14px;
-      border: 2px solid rgba(88, 101, 242, 0.6);
-      object-fit: cover;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-      flex-shrink: 0;
-    }
-    /* قسم صورة المستخدم واسمه (على اليمين) */
-    .user-profile-box {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex-shrink: 0;
-      width: 80px;
-    }
     .avatar {
-      width: 65px;
-      height: 65px;
+      width: 96px;
+      height: 96px;
       border-radius: 50%;
-      border: 2px solid #57f287;
+      border: 3px solid #ff6b00;
       object-fit: cover;
-      box-shadow: 0 0 15px rgba(87, 242, 135, 0.3);
-      margin-bottom: 6px;
+      box-shadow: 0 0 20px rgba(255, 107, 0, 0.4);
+      margin-bottom: 16px;
     }
     .username {
-      font-size: 13px;
+      font-size: 22px;
       font-weight: 700;
-      color: #f2f3f5;
-      width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      color: #f3f0ff;
+      margin-bottom: 12px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
     }
-    /* المحتوى الأوسط (الرسالة والزر) */
-    .center-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .message-box {
+    .status-badge {
+      color: #ff9f43;
       font-size: 14px;
-      font-weight: 700;
-      color: #57f287;
-      margin-bottom: 16px;
-      background: rgba(87, 242, 135, 0.08);
-      padding: 10px 14px;
-      border-radius: 12px;
-      border: 1px solid rgba(87, 242, 135, 0.2);
-      line-height: 1.5;
-      width: 100%;
-    }
-    .btn {
-      display: flex;
+      font-weight: 500;
+      background: rgba(255, 159, 67, 0.08);
+      border: 1px solid rgba(255, 159, 67, 0.2);
+      padding: 8px 18px;
+      border-radius: 30px;
+      margin-bottom: 25px;
+      display: inline-flex;
       align-items: center;
-      justify-content: center;
       gap: 8px;
-      background: #5865f2;
-      color: #fff;
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 700;
-      padding: 12px 18px;
-      border-radius: 12px;
-      transition: all 0.25s ease;
-      box-shadow: 0 4px 14px rgba(88, 101, 242, 0.4);
-      width: 100%;
     }
-    .btn:hover {
-      background: #4752c4;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(88, 101, 242, 0.6);
-    }
-    /* توقيع المطور بخط رفيع جداً في الأسفل */
+    /* التوقيع بخط رفيع جداً */
     .developer-sig {
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
       font-size: 10px;
       font-weight: 300;
       color: rgba(255, 255, 255, 0.35);
-      letter-spacing: 1.5px;
+      letter-spacing: 2px;
       text-transform: uppercase;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 15px;
       width: 100%;
-      text-align: center;
     }
   </style>
 </head>
 <body>
+  <div class="halloween-bg">
+    <div class="glow-orb" style="top: 10%; left: 15%;"></div>
+    <div class="glow-orb"></div>
+  </div>
   <div class="card">${body}</div>
 </body>
 </html>`;
@@ -186,34 +165,13 @@ app.get("/", async (req, res) => {
   if (!userDoc) return res.redirect("/login");
 
   res.send(page(`
-    <div class="main-row">
-      <!-- على الشمال: الفارس الذي يحمل التاج -->
-      <img class="knight-box" src="https://i.pinimg.com/736x/87/40/e6/8740e608034c264a935beee2e0435df2.jpg" alt="Knight">
-      
-      <!-- في المنتصف: النص والزر -->
-      <div class="center-content">
-        <div class="message-box">
-          تم يباشا حسابك انربط و بيصير اونلاين دائما 😉
-        </div>
-
-        <a class="btn" href="https://discord.gg/mnm" target="_blank">
-          <svg style="width:18px;height:18px;fill:#ffffff;" viewBox="0 0 24 24">
-            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-          </svg>
-          انضم للسيرفر
-        </a>
-      </div>
-
-      <!-- على اليمين: صورة بروفايل الشخص وتحتها اسمه -->
-      <div class="user-profile-box">
-        <img class="avatar" src="${userDoc.avatar}" alt="Avatar">
-        <div class="username" title="${userDoc.username}">${userDoc.username}</div>
-      </div>
+    <img class="avatar" src="${userDoc.avatar}" alt="Avatar">
+    <div class="username">${userDoc.username}</div>
+    <div class="status-badge">
+      🎃 تم ربط الحساب بنجاح و يعمل في الظلام...
     </div>
-
-    <!-- توقيع المطور بخط رفيع في الأسفل -->
     <div class="developer-sig">
-      BY SYRIAN DEVLOPER:KEO
+      made by syrian devloper : keo
     </div>
   `));
 });
@@ -258,12 +216,10 @@ app.get("/callback", async (req, res) => {
   });
   const user = await ur.json();
 
-  // جلب رابط صورة الحساب بشكل صحيح
   const avatarUrl = user.avatar 
     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` 
     : `https://cdn.discordapp.com/embed/avatars/${Number(user.discriminator || 0) % 5}.png`;
 
-  // حفظ بيانات المستخدم في قاعدة البيانات
   await usersData.findOneAndUpdate(
     { id: user.id },
     {
